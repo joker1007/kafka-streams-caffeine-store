@@ -1,0 +1,27 @@
+version: 2.1
+
+jobs:
+  build:
+    working_directory: ~/circleci
+    docker:
+      - image: circleci/openjdk:11-jdk-stretch
+
+    environment:
+      MAVEN_OPTS: -Xmx2048m
+
+    steps:
+      - checkout
+
+      - restore_cache:
+          key: kafka-streams-caffeine-store-{{ checksum "lib/build.gradle" }}
+
+      - run:
+          command: ./gradlew test
+
+      - save_cache:
+          paths:
+            - ~/.gradle
+          key: kafka-streams-caffeine-store-{{ checksum "lib/build.gradle" }}
+
+      - store_test_results:
+          path: build/test-results
