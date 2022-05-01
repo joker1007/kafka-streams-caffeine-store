@@ -24,4 +24,4 @@ jobs:
           key: kafka-streams-caffeine-store-{{ checksum "lib/build.gradle" }}
 
       - store_test_results:
-          path: build/test-results
+          path: lib/build/test-results
