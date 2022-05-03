@@ -18,12 +18,13 @@ import org.junit.jupiter.api.Test;
 
 class CaffeineCachedKeyValueStoreTest {
 
+  private MockProcessorContext<String, String> context;
   private KeyValueStore<String, String> innerStore;
   private CaffeineCachedKeyValueStore<String, String> caffeineCachedStore;
 
   @BeforeEach
   void setUp() {
-    MockProcessorContext<String, String> context = new MockProcessorContext<>();
+    context = new MockProcessorContext<>();
     innerStore =
         Stores.keyValueStoreBuilder(
                 Stores.inMemoryKeyValueStore("inmemory-key-value-store"),
@@ -34,7 +35,7 @@ class CaffeineCachedKeyValueStoreTest {
             .build();
 
     var caffeine = Caffeine.newBuilder().maximumSize(10);
-    caffeineCachedStore = new CaffeineCachedKeyValueStore<>(caffeine, innerStore);
+    caffeineCachedStore = new CaffeineCachedKeyValueStore<>(caffeine, innerStore, false);
     context.addStateStore(caffeineCachedStore);
     caffeineCachedStore.init(context.getStateStoreContext(), caffeineCachedStore);
   }
@@ -45,6 +46,24 @@ class CaffeineCachedKeyValueStoreTest {
     assertEquals(value, caffeineCachedStore.getCache().getIfPresent(key));
     assertEquals(value, caffeineCachedStore.wrapped().get(key));
     assertTrue(caffeineCachedStore.getCachedKeys().contains(key));
+  }
+
+  @Test
+  void testLoadAllOnInit() {
+    innerStore.put("foo1", "bar1");
+    innerStore.put("foo2", "bar2");
+    innerStore.put("foo3", "bar3");
+    innerStore.put("foo4", "bar4");
+
+    var caffeine = Caffeine.newBuilder().maximumSize(10);
+    var loadingCaffeineCachedStore = new CaffeineCachedKeyValueStore<>(caffeine, innerStore, true);
+    context.addStateStore(caffeineCachedStore);
+    loadingCaffeineCachedStore.init(context.getStateStoreContext(), caffeineCachedStore);
+
+    assertCaching(loadingCaffeineCachedStore, "foo1", "bar1");
+    assertCaching(loadingCaffeineCachedStore, "foo2", "bar2");
+    assertCaching(loadingCaffeineCachedStore, "foo3", "bar3");
+    assertCaching(loadingCaffeineCachedStore, "foo4", "bar4");
   }
 
   @Test
@@ -135,6 +154,21 @@ class CaffeineCachedKeyValueStoreTest {
   }
 
   @Test
+  void testAllOnlyCached() {
+    setUpIteratorTest();
+
+    try (var it = caffeineCachedStore.allOnlyCached()) {
+      List<KeyValue<String, String>> list = new ArrayList<>();
+      it.forEachRemaining(list::add);
+      assertEquals(4, list.size());
+      assertEquals("bar1", list.get(0).value);
+      assertEquals("bar2", list.get(1).value);
+      assertEquals("bar6", list.get(2).value);
+      assertEquals("bar7", list.get(3).value);
+    }
+  }
+
+  @Test
   void testRange() {
     setUpIteratorTest();
 
@@ -145,6 +179,18 @@ class CaffeineCachedKeyValueStoreTest {
       assertEquals("bar2", list.get(0).value);
       assertEquals("bar3", list.get(1).value);
       assertEquals("bar4", list.get(2).value);
+    }
+  }
+
+  @Test
+  void testRangeOnlyCached() {
+    setUpIteratorTest();
+
+    try (var it = caffeineCachedStore.rangeOnlyCached("foo2", "foo4")) {
+      List<KeyValue<String, String>> list = new ArrayList<>();
+      it.forEachRemaining(list::add);
+      assertEquals(1, list.size());
+      assertEquals("bar2", list.get(0).value);
     }
   }
 
@@ -166,6 +212,21 @@ class CaffeineCachedKeyValueStoreTest {
   }
 
   @Test
+  void testReverseAllOnlyCached() {
+    setUpIteratorTest();
+
+    try (var it = caffeineCachedStore.reverseAllOnlyCached()) {
+      List<KeyValue<String, String>> list = new ArrayList<>();
+      it.forEachRemaining(list::add);
+      assertEquals(4, list.size());
+      assertEquals("bar7", list.get(0).value);
+      assertEquals("bar6", list.get(1).value);
+      assertEquals("bar2", list.get(2).value);
+      assertEquals("bar1", list.get(3).value);
+    }
+  }
+
+  @Test
   void testReverseRange() {
     setUpIteratorTest();
 
@@ -175,6 +236,20 @@ class CaffeineCachedKeyValueStoreTest {
       assertEquals(3, list.size());
       assertEquals("bar4", list.get(0).value);
       assertEquals("bar3", list.get(1).value);
+      assertEquals("bar2", list.get(2).value);
+    }
+  }
+
+  @Test
+  void testReverseRangeOnlyCached() {
+    setUpIteratorTest();
+
+    try (var it = caffeineCachedStore.reverseRangeOnlyCached("foo2", "foo7")) {
+      List<KeyValue<String, String>> list = new ArrayList<>();
+      it.forEachRemaining(list::add);
+      assertEquals(3, list.size());
+      assertEquals("bar7", list.get(0).value);
+      assertEquals("bar6", list.get(1).value);
       assertEquals("bar2", list.get(2).value);
     }
   }
@@ -197,6 +272,26 @@ class CaffeineCachedKeyValueStoreTest {
       assertEquals("bar22", list.get(2).value);
       assertEquals("bar2_1", list.get(3).value);
       assertEquals("bar2_2", list.get(4).value);
+    }
+  }
+
+  @Test
+  void testPrefixScanOnlyCached() {
+    setUpIteratorTest();
+    caffeineCachedStore.put("foo21", "bar21");
+    caffeineCachedStore.put("foo22", "bar22");
+    caffeineCachedStore.put("foo2_1", "bar2_1");
+    innerStore.put("foo21", "bar21");
+    innerStore.put("foo2_2", "bar2_2");
+
+    try (var it = caffeineCachedStore.prefixScanOnlyCached("foo2", Serdes.String().serializer())) {
+      List<KeyValue<String, String>> list = new ArrayList<>();
+      it.forEachRemaining(list::add);
+      assertEquals(4, list.size());
+      assertEquals("bar2", list.get(0).value);
+      assertEquals("bar21", list.get(1).value);
+      assertEquals("bar22", list.get(2).value);
+      assertEquals("bar2_1", list.get(3).value);
     }
   }
 

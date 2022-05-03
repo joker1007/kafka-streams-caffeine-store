@@ -31,13 +31,15 @@ public class CaffeineCachedKeyValueStore<K extends Comparable<K>, V>
   private NavigableMap<K, DirtyEntry<V>> dirtyEntries;
   private CacheFlushListener<K, V> cacheFlushListener;
   private boolean sendOldValues;
+  private final boolean loadAllOnInit;
 
   private InternalProcessorContext context;
 
   public CaffeineCachedKeyValueStore(
-      Caffeine<Object, Object> caffeine, KeyValueStore<K, V> wrapped) {
+      Caffeine<Object, Object> caffeine, KeyValueStore<K, V> wrapped, boolean loadAllOnInit) {
     super(wrapped);
     this.caffeine = caffeine;
+    this.loadAllOnInit = loadAllOnInit;
   }
 
   SortedSet<K> getCachedKeys() {
@@ -59,6 +61,20 @@ public class CaffeineCachedKeyValueStore<K extends Comparable<K>, V>
     caffeine.evictionListener((key, value, cause) -> cachedKeys.remove(key));
     this.cache = caffeine.build();
     this.dirtyEntries = new ConcurrentSkipListMap<>();
+
+    if (loadAllOnInit) {
+      loadAllFromInnerStore();
+    }
+  }
+
+  private void loadAllFromInnerStore() {
+    try (var it = wrapped().all()) {
+      it.forEachRemaining(
+          keyValue -> {
+            cache.put(keyValue.key, keyValue.value);
+            cachedKeys.add(keyValue.key);
+          });
+    }
   }
 
   @Value
@@ -204,33 +220,53 @@ public class CaffeineCachedKeyValueStore<K extends Comparable<K>, V>
   @Override
   public KeyValueIterator<K, V> range(K from, K to) {
     var keyRange = cachedKeys.subSet(from, true, to, true);
-    return new CacheEntryIterator<>(
+    return new MergedCacheEntryIterator<>(
         cache, new PeekingIterator<>(keyRange.iterator()), wrapped().range(from, to), true);
+  }
+
+  public KeyValueIterator<K, V> rangeOnlyCached(K from, K to) {
+    var keyRange = cachedKeys.subSet(from, true, to, true);
+    return new CacheEntryIterator<>(cache, new PeekingIterator<>(keyRange.iterator()), true);
   }
 
   @Override
   public KeyValueIterator<K, V> reverseRange(K from, K to) {
     var keyRange = cachedKeys.subSet(from, true, to, true);
-    return new CacheEntryIterator<>(
+    return new MergedCacheEntryIterator<>(
         cache,
         new PeekingIterator<>(keyRange.descendingIterator()),
         wrapped().reverseRange(from, to),
         false);
   }
 
+  public KeyValueIterator<K, V> reverseRangeOnlyCached(K from, K to) {
+    var keyRange = cachedKeys.subSet(from, true, to, true);
+    return new CacheEntryIterator<>(
+        cache, new PeekingIterator<>(keyRange.descendingIterator()), false);
+  }
+
   @Override
   public KeyValueIterator<K, V> all() {
-    return new CacheEntryIterator<>(
+    return new MergedCacheEntryIterator<>(
         cache, new PeekingIterator<>(cachedKeys.iterator()), wrapped().all(), true);
+  }
+
+  public KeyValueIterator<K, V> allOnlyCached() {
+    return new CacheEntryIterator<>(cache, new PeekingIterator<>(cachedKeys.iterator()), true);
   }
 
   @Override
   public KeyValueIterator<K, V> reverseAll() {
-    return new CacheEntryIterator<>(
+    return new MergedCacheEntryIterator<>(
         cache,
         new PeekingIterator<>(cachedKeys.descendingIterator()),
         wrapped().reverseAll(),
         false);
+  }
+
+  public KeyValueIterator<K, V> reverseAllOnlyCached() {
+    return new CacheEntryIterator<>(
+        cache, new PeekingIterator<>(cachedKeys.descendingIterator()), false);
   }
 
   @SuppressWarnings("unchecked")
@@ -238,11 +274,18 @@ public class CaffeineCachedKeyValueStore<K extends Comparable<K>, V>
   public <PS extends Serializer<P>, P> KeyValueIterator<K, V> prefixScan(
       P prefix, PS prefixKeySerializer) {
     var keyRange = cachedKeys.subSet((K) prefix, true, succKey(prefix), false);
-    return new CacheEntryIterator<>(
+    return new MergedCacheEntryIterator<>(
         cache,
         new PeekingIterator<>(keyRange.iterator()),
         wrapped().prefixScan(prefix, prefixKeySerializer),
         true);
+  }
+
+  @SuppressWarnings("unchecked")
+  public <PS extends Serializer<P>, P> KeyValueIterator<K, V> prefixScanOnlyCached(
+      P prefix, PS prefixKeySerializer) {
+    var keyRange = cachedKeys.subSet((K) prefix, true, succKey(prefix), false);
+    return new CacheEntryIterator<>(cache, new PeekingIterator<>(keyRange.iterator()), true);
   }
 
   @SuppressWarnings({"unchecked", "WrapperTypeMayBePrimitive"})
