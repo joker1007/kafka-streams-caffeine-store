@@ -249,6 +249,11 @@ class CaffeineCachedKeyValueStoreTest {
 
     assertEquals("bar1_2", newValues.get("foo1"));
     assertEquals("bar2", newValues.get("foo2"));
+
+    caffeineCachedStore.delete("foo2");
+    caffeineCachedStore.flush();
+
+    assertNull(newValues.get("foo2"));
   }
 
   @Test
@@ -273,5 +278,11 @@ class CaffeineCachedKeyValueStoreTest {
     assertEquals("bar1", newValues.get("foo1").get(1));
     assertEquals("bar2", newValues.get("foo2").get(0));
     assertNull(newValues.get("foo2").get(1));
+
+    caffeineCachedStore.delete("foo2");
+    caffeineCachedStore.flush();
+
+    assertNull(newValues.get("foo2").get(0));
+    assertEquals("bar2", newValues.get("foo2").get(1));
   }
 }

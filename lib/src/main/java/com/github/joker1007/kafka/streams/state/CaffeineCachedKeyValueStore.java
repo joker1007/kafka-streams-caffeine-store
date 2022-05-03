@@ -2,11 +2,11 @@ package com.github.joker1007.kafka.streams.state;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.NavigableMap;
 import java.util.NavigableSet;
 import java.util.SortedSet;
+import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import lombok.Builder;
 import lombok.Value;
@@ -28,7 +28,7 @@ public class CaffeineCachedKeyValueStore<K extends Comparable<K>, V>
   private final Caffeine<Object, Object> caffeine;
   private Cache<K, V> cache;
   private NavigableSet<K> cachedKeys;
-  private Map<K, DirtyEntry<V>> dirtyEntries;
+  private NavigableMap<K, DirtyEntry<V>> dirtyEntries;
   private CacheFlushListener<K, V> cacheFlushListener;
   private boolean sendOldValues;
 
@@ -58,12 +58,12 @@ public class CaffeineCachedKeyValueStore<K extends Comparable<K>, V>
     //noinspection SuspiciousMethodCalls
     caffeine.evictionListener((key, value, cause) -> cachedKeys.remove(key));
     this.cache = caffeine.build();
-    this.dirtyEntries = new HashMap<>();
+    this.dirtyEntries = new ConcurrentSkipListMap<>();
   }
 
   @Value
   @Builder(setterPrefix = "set")
-  public static class DirtyEntry<V> {
+  static class DirtyEntry<V> {
     V newValue;
     V oldValue;
     Long timestamp;
@@ -85,9 +85,9 @@ public class CaffeineCachedKeyValueStore<K extends Comparable<K>, V>
             key,
             (k, v) -> {
               cachedKeys.add(k);
+
               DirtyEntry.DirtyEntryBuilder<V> dirtyEntryBuilder =
                   DirtyEntry.<V>builder().setNewValue(value).setOldValue(sendOldValues ? v : null);
-
               if (context != null) {
                 dirtyEntryBuilder
                     .setTimestamp(context.timestamp())
@@ -96,8 +96,9 @@ public class CaffeineCachedKeyValueStore<K extends Comparable<K>, V>
                     .setTopic(context.topic())
                     .setOffset(context.offset());
               }
-
               dirtyEntries.put(k, dirtyEntryBuilder.build());
+
+              wrapped().put(k, value);
               return value;
             });
   }
@@ -110,9 +111,9 @@ public class CaffeineCachedKeyValueStore<K extends Comparable<K>, V>
             key,
             k -> {
               cachedKeys.add(k);
+
               DirtyEntry.DirtyEntryBuilder<V> dirtyEntryBuilder =
                   DirtyEntry.<V>builder().setNewValue(value).setOldValue(null);
-
               if (context != null) {
                 dirtyEntryBuilder
                     .setTimestamp(context.timestamp())
@@ -122,6 +123,8 @@ public class CaffeineCachedKeyValueStore<K extends Comparable<K>, V>
                     .setOffset(context.offset());
               }
               dirtyEntries.put(k, dirtyEntryBuilder.build());
+
+              wrapped().put(key, value);
               return value;
             });
   }
@@ -136,11 +139,11 @@ public class CaffeineCachedKeyValueStore<K extends Comparable<K>, V>
                     keyValue.key,
                     (k, v) -> {
                       cachedKeys.add(k);
+
                       DirtyEntry.DirtyEntryBuilder<V> dirtyEntryBuilder =
                           DirtyEntry.<V>builder()
                               .setNewValue(keyValue.value)
                               .setOldValue(sendOldValues ? v : null);
-
                       if (context != null) {
                         dirtyEntryBuilder
                             .setTimestamp(context.timestamp())
@@ -150,6 +153,8 @@ public class CaffeineCachedKeyValueStore<K extends Comparable<K>, V>
                             .setOffset(context.offset());
                       }
                       dirtyEntries.put(k, dirtyEntryBuilder.build());
+
+                      wrapped().put(k, keyValue.value);
                       return keyValue.value;
                     }));
   }
@@ -157,20 +162,28 @@ public class CaffeineCachedKeyValueStore<K extends Comparable<K>, V>
   @Override
   public V delete(K key) {
     V oldValue = get(key);
-    cache.invalidate(key);
-    cachedKeys.remove(key);
-    DirtyEntry.DirtyEntryBuilder<V> dirtyEntryBuilder =
-        DirtyEntry.<V>builder().setNewValue(null).setOldValue(sendOldValues ? oldValue : null);
+    cache
+        .asMap()
+        .compute(
+            key,
+            (k, v) -> {
+              cachedKeys.remove(k);
 
-    if (context != null) {
-      dirtyEntryBuilder
-          .setTimestamp(context.timestamp())
-          .setHeaders(context.headers())
-          .setPartition(context.partition())
-          .setTopic(context.topic())
-          .setOffset(context.offset());
-    }
-    dirtyEntries.put(key, dirtyEntryBuilder.build());
+              DirtyEntry.DirtyEntryBuilder<V> dirtyEntryBuilder =
+                  DirtyEntry.<V>builder().setNewValue(null).setOldValue(sendOldValues ? v : null);
+              if (context != null) {
+                dirtyEntryBuilder
+                    .setTimestamp(context.timestamp())
+                    .setHeaders(context.headers())
+                    .setPartition(context.partition())
+                    .setTopic(context.topic())
+                    .setOffset(context.offset());
+              }
+              dirtyEntries.put(k, dirtyEntryBuilder.build());
+              wrapped().delete(key);
+
+              return null;
+            });
 
     return oldValue;
   }
@@ -265,21 +278,19 @@ public class CaffeineCachedKeyValueStore<K extends Comparable<K>, V>
 
   @Override
   public void flushCache() {
-    doFlush();
     super.flushCache();
+    doFlush();
   }
 
   @Override
   public void flush() {
-    doFlush();
     super.flush();
+    doFlush();
   }
 
   private void doFlush() {
     dirtyEntries.forEach(
         (k, v) -> {
-          writeInner(k, v.newValue);
-
           if (cacheFlushListener != null) {
             if (context != null) {
               var current = context.recordContext();
@@ -298,13 +309,6 @@ public class CaffeineCachedKeyValueStore<K extends Comparable<K>, V>
             }
           }
         });
-  }
-
-  private void writeInner(K key, V value) {
-    if (value != null) {
-      wrapped().put(key, value);
-    } else {
-      wrapped().delete(key);
-    }
+    dirtyEntries.clear();
   }
 }
