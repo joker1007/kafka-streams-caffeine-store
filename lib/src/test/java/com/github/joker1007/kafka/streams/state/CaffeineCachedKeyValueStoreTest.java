@@ -69,14 +69,12 @@ class CaffeineCachedKeyValueStoreTest {
   @Test
   void testPut() {
     caffeineCachedStore.put("foo", "bar");
-    caffeineCachedStore.flush();
     assertCaching(caffeineCachedStore, "foo", "bar");
   }
 
   @Test
   void testPutIfAbsent() {
     var result = caffeineCachedStore.putIfAbsent("foo", "bar");
-    caffeineCachedStore.flush();
     assertEquals("bar", result);
     assertCaching(caffeineCachedStore, "foo", "bar");
 
@@ -93,7 +91,6 @@ class CaffeineCachedKeyValueStoreTest {
             KeyValue.pair("foo2", "bar2"),
             KeyValue.pair("foo3", "bar3"));
     caffeineCachedStore.putAll(entries);
-    caffeineCachedStore.flush();
 
     assertCaching(caffeineCachedStore, "foo1", "bar1");
     assertCaching(caffeineCachedStore, "foo2", "bar2");
@@ -103,9 +100,7 @@ class CaffeineCachedKeyValueStoreTest {
   @Test
   void testDelete() {
     caffeineCachedStore.put("foo", "bar");
-    caffeineCachedStore.flush();
     caffeineCachedStore.delete("foo");
-    caffeineCachedStore.flush();
     assertNull(caffeineCachedStore.get("foo"));
     assertFalse(caffeineCachedStore.getCachedKeys().contains("foo"));
   }
@@ -127,7 +122,6 @@ class CaffeineCachedKeyValueStoreTest {
             KeyValue.pair("foo2", "bar2"),
             KeyValue.pair("foo6", "bar6"));
     caffeineCachedStore.putAll(entries);
-    caffeineCachedStore.flush();
 
     caffeineCachedStore.put("foo7", "bar7");
 
@@ -304,7 +298,6 @@ class CaffeineCachedKeyValueStoreTest {
               String value = "bar" + String.format("%03d", i);
               caffeineCachedStore.put(key, value);
             });
-    caffeineCachedStore.flush();
 
     List<KeyValue<String, String>> list = new ArrayList<>();
     caffeineCachedStore.getCache().asMap().forEach((k, v) -> list.add(KeyValue.pair(k, v)));
