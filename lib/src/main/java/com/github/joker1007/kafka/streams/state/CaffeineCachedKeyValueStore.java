@@ -241,7 +241,7 @@ public class CaffeineCachedKeyValueStore<K extends Comparable<K>, V>
 
   public KeyValueIterator<K, V> rangeOnlyCached(K from, K to) {
     var keyRange = cachedKeys.subSet(from, true, to, true);
-    return new CacheEntryIterator<>(cache, new PeekingIterator<>(keyRange.iterator()), true);
+    return new CacheEntryIterator<>(cache, new PeekingIterator<>(keyRange.iterator()));
   }
 
   @Override
@@ -256,8 +256,7 @@ public class CaffeineCachedKeyValueStore<K extends Comparable<K>, V>
 
   public KeyValueIterator<K, V> reverseRangeOnlyCached(K from, K to) {
     var keyRange = cachedKeys.subSet(from, true, to, true);
-    return new CacheEntryIterator<>(
-        cache, new PeekingIterator<>(keyRange.descendingIterator()), false);
+    return new CacheEntryIterator<>(cache, new PeekingIterator<>(keyRange.descendingIterator()));
   }
 
   @Override
@@ -267,7 +266,7 @@ public class CaffeineCachedKeyValueStore<K extends Comparable<K>, V>
   }
 
   public KeyValueIterator<K, V> allOnlyCached() {
-    return new CacheEntryIterator<>(cache, new PeekingIterator<>(cachedKeys.iterator()), true);
+    return new CacheEntryIterator<>(cache, new PeekingIterator<>(cachedKeys.iterator()));
   }
 
   @Override
@@ -280,8 +279,7 @@ public class CaffeineCachedKeyValueStore<K extends Comparable<K>, V>
   }
 
   public KeyValueIterator<K, V> reverseAllOnlyCached() {
-    return new CacheEntryIterator<>(
-        cache, new PeekingIterator<>(cachedKeys.descendingIterator()), false);
+    return new CacheEntryIterator<>(cache, new PeekingIterator<>(cachedKeys.descendingIterator()));
   }
 
   @SuppressWarnings("unchecked")
@@ -300,7 +298,7 @@ public class CaffeineCachedKeyValueStore<K extends Comparable<K>, V>
   public <PS extends Serializer<P>, P> KeyValueIterator<K, V> prefixScanOnlyCached(
       P prefix, PS prefixKeySerializer) {
     var keyRange = cachedKeys.subSet((K) prefix, true, succKey(prefix), false);
-    return new CacheEntryIterator<>(cache, new PeekingIterator<>(keyRange.iterator()), true);
+    return new CacheEntryIterator<>(cache, new PeekingIterator<>(keyRange.iterator()));
   }
 
   @SuppressWarnings({"unchecked", "WrapperTypeMayBePrimitive"})

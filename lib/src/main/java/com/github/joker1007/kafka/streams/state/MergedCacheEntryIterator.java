@@ -6,7 +6,6 @@ import org.apache.commons.collections4.iterators.PeekingIterator;
 import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.state.KeyValueIterator;
 
-
 /*
  * This class is based on AbstractMergedSortedCacheStoreIterator of Apache Kafka
  *
@@ -89,11 +88,11 @@ public class MergedCacheEntryIterator<K extends Comparable<K>, V>
     }
 
     if (nextStoreKey == null) {
-      return nextCacheValue(nextCacheKey);
+      return nextCacheValue();
     }
 
     final int comparison = compare(nextCacheKey, nextStoreKey);
-    return chooseNextValue(nextCacheKey, nextStoreKey, comparison);
+    return chooseNextValue(nextStoreKey, comparison);
   }
 
   private KeyValue<K, V> nextStoreValue(final K nextStoreKey) {
@@ -107,7 +106,7 @@ public class MergedCacheEntryIterator<K extends Comparable<K>, V>
     return next;
   }
 
-  private KeyValue<K, V> nextCacheValue(final K nextCacheKey) {
+  private KeyValue<K, V> nextCacheValue() {
     final K nextKey = cachedKeyIterator.next();
     V value = cache.getIfPresent(nextKey);
 
@@ -123,27 +122,26 @@ public class MergedCacheEntryIterator<K extends Comparable<K>, V>
     return cacheKey.compareTo(storeKey);
   }
 
-  private KeyValue<K, V> chooseNextValue(
-      final K nextCacheKey, final K nextStoreKey, final int comparison) {
+  private KeyValue<K, V> chooseNextValue(final K nextStoreKey, final int comparison) {
     if (forward) {
       if (comparison > 0) {
         return nextStoreValue(nextStoreKey);
       } else if (comparison < 0) {
-        return nextCacheValue(nextCacheKey);
+        return nextCacheValue();
       } else {
         // skip the same keyed element
         storeIterator.next();
-        return nextCacheValue(nextCacheKey);
+        return nextCacheValue();
       }
     } else {
       if (comparison < 0) {
         return nextStoreValue(nextStoreKey);
       } else if (comparison > 0) {
-        return nextCacheValue(nextCacheKey);
+        return nextCacheValue();
       } else {
         // skip the same keyed element
         storeIterator.next();
-        return nextCacheValue(nextCacheKey);
+        return nextCacheValue();
       }
     }
   }

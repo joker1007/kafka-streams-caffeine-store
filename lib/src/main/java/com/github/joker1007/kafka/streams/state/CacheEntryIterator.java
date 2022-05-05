@@ -19,21 +19,20 @@ import org.apache.kafka.streams.state.KeyValueIterator;
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
-*/
+ */
 public class CacheEntryIterator<K, V> implements KeyValueIterator<K, V> {
   private final Cache<K, V> cache;
   private final PeekingIterator<K> cachedKeyIterator;
-  private final boolean forward;
 
-  public CacheEntryIterator(
-      Cache<K, V> cache, PeekingIterator<K> cachedKeyIterator, boolean forward) {
+  public CacheEntryIterator(Cache<K, V> cache, PeekingIterator<K> cachedKeyIterator) {
     this.cache = cache;
     this.cachedKeyIterator = cachedKeyIterator;
-    this.forward = forward;
   }
 
   @Override
-  public void close() {}
+  public void close() {
+    /* noop */
+  }
 
   @Override
   public K peekNextKey() {
