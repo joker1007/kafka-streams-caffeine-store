@@ -70,7 +70,8 @@ public class CaffeineCachedKeyValueStoreBuilder<K extends Comparable<K>, V>
 
   @Override
   public CaffeineCachedKeyValueStore<K, V> build() {
-    return new CaffeineCachedKeyValueStore<>(caffeine, innerStoreBuilder.build(), loadAllOnInit);
+    return new CaffeineCachedKeyValueStore<>(
+        name, caffeine, innerStoreBuilder.build(), loadAllOnInit);
   }
 
   @Override

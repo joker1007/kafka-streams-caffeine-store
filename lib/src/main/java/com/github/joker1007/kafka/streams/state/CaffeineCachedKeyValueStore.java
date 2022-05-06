@@ -40,6 +40,7 @@ import org.apache.kafka.streams.state.internals.WrappedStateStore;
  */
 public class CaffeineCachedKeyValueStore<K extends Comparable<K>, V>
     extends WrappedStateStore<KeyValueStore<K, V>, K, V> implements KeyValueStore<K, V> {
+  private final String name;
   private final Caffeine<Object, Object> caffeine;
   private Cache<K, V> cache;
   private NavigableSet<K> cachedKeys;
@@ -51,8 +52,12 @@ public class CaffeineCachedKeyValueStore<K extends Comparable<K>, V>
   private InternalProcessorContext context;
 
   public CaffeineCachedKeyValueStore(
-      Caffeine<Object, Object> caffeine, KeyValueStore<K, V> wrapped, boolean loadAllOnInit) {
+      String name,
+      Caffeine<Object, Object> caffeine,
+      KeyValueStore<K, V> wrapped,
+      boolean loadAllOnInit) {
     super(wrapped);
+    this.name = name;
     this.caffeine = caffeine;
     this.loadAllOnInit = loadAllOnInit;
   }
@@ -63,6 +68,11 @@ public class CaffeineCachedKeyValueStore<K extends Comparable<K>, V>
 
   Cache<K, V> getCache() {
     return cache;
+  }
+
+  @Override
+  public String name() {
+    return name;
   }
 
   @Override

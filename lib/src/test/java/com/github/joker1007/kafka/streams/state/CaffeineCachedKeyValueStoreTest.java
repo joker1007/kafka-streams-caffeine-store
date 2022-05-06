@@ -35,7 +35,9 @@ class CaffeineCachedKeyValueStoreTest {
             .build();
 
     var caffeine = Caffeine.newBuilder().maximumSize(10);
-    caffeineCachedStore = new CaffeineCachedKeyValueStore<>(caffeine, innerStore, false);
+    caffeineCachedStore =
+        new CaffeineCachedKeyValueStore<>(
+            "caffeine-cached-key-value-store", caffeine, innerStore, false);
     context.addStateStore(caffeineCachedStore);
     caffeineCachedStore.init(context.getStateStoreContext(), caffeineCachedStore);
   }
@@ -56,7 +58,9 @@ class CaffeineCachedKeyValueStoreTest {
     innerStore.put("foo4", "bar4");
 
     var caffeine = Caffeine.newBuilder().maximumSize(10);
-    var loadingCaffeineCachedStore = new CaffeineCachedKeyValueStore<>(caffeine, innerStore, true);
+    var loadingCaffeineCachedStore =
+        new CaffeineCachedKeyValueStore<>(
+            "caffeine-cached-key-value-store", caffeine, innerStore, true);
     context.addStateStore(caffeineCachedStore);
     loadingCaffeineCachedStore.init(context.getStateStoreContext(), caffeineCachedStore);
 
